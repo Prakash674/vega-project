@@ -2,7 +2,10 @@ import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 import { user } from './model/userModel';
+import { authenticateToken } from './middleware';
+import blogRoutes from './routes/blogRoutes';
 dotenv.config();
 
 const app = express();
@@ -12,8 +15,7 @@ app.use(express.json());
 // MongoDB connect
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(
-      (process.env.MONGO_URI as string) );
+    const conn = await mongoose.connect(process.env.MONGO_URI as string);
     console.log(`MongoDB connected: ${conn.connection.host}`);
   } catch (err) {
     console.error(err);
@@ -52,8 +54,10 @@ app.post('/api/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
+    console.log(req.body);
+
     if (!email || !password) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({ message: 'All fields are not required' });
     }
 
     // Check if user already exists
@@ -62,12 +66,28 @@ app.post('/api/login', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'User not exists login ' });
     }
 
-    res.status(200).json({ message: 'User logged in', user: existingUser });
+    const token = jwt.sign(
+      {
+        email,
+      },
+      process.env.JWT_SECRET as string
+    );
 
+    //  const token =  jwt
+
+    res
+      .status(200)
+      .json({ message: 'User logged in', user: existingUser, token });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err });
   }
 });
+
+app.get('/profile', authenticateToken, (req, res) => {
+  res.json({ message: 'Protected route accessed successfully!' });
+});
+
+app.use('/api/blog', blogRoutes);
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
